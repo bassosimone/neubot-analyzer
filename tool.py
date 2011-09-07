@@ -1,0 +1,369 @@
+#!/usr/bin/env python
+
+#
+# Copyright (c) 2011 Simone Basso <bassosimone@gmail.com>
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+
+'''
+ This is the script I use to manage and analyze the set of Neubot
+ databases collected over time.  This is just for personal use and
+ so might not work for you out of the box.
+'''
+
+import decimal
+import getopt
+import json
+import syslog
+import sqlite3
+import time
+import bz2
+import re
+import sys
+import os
+
+sys.path.insert(0, '/home/simone/git/neubot')
+
+from neubot.database import DATABASE
+from neubot.database import migrate
+
+def __connect(path):
+
+    '''
+     This function connects to the database at @path and sets up
+     sqlite3.Row as row factory, so that we can treat results both
+     as tuples and as dictionaries.
+    '''
+
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+def __info(connection):
+
+    '''
+     This function reads information on the database referenced
+     by @connection, i.e. reads and prints ``config`` table.
+    '''
+
+    result = {}
+
+    cursor = connection.cursor()
+    cursor.execute('SELECT * FROM config;')
+    for name, value in cursor:
+        result[name] = value
+
+    return result
+
+def __decompress(path):
+
+    '''
+     This function decompress a compressed Neubot database
+     on the current working directory
+    '''
+
+    outputpath = os.path.basename(path).replace('.bz2', '')
+
+    inputfp = bz2.BZ2File(path)
+    outputfp = open(outputpath, 'w')
+    while True:
+        chunk = inputfp.read(262144)
+        if not chunk:
+            break
+        outputfp.write(chunk)
+    outputfp.close()
+    inputfp.close()
+
+    return outputpath
+
+def __create_empty(path):
+
+    '''
+     This functions creates an empty Neubot database at @path,
+     jusing Neubot internals to do that.
+    '''
+
+    DATABASE.set_path(path)
+    connection = DATABASE.connection()
+    connection.commit()
+    connection.close()
+
+def __migrate(connection):
+
+    '''
+     This function migrates the database at @connection to the
+     current database format.  To do that, this function uses
+     directly the Neubot routines written for this purpose.
+    '''
+
+    migrate.migrate(connection)
+
+def __sanitize(table):
+
+    '''
+     Write query making sure that the table name contains only
+     lowercase letters or underscores.
+    '''
+
+    stripped = re.sub(r'[^a-z_]', '', table)
+    if stripped != table:
+        raise RuntimeError("Invalid table name")
+
+    return table
+
+def __lookup_can_share(connection, table):
+
+    '''
+     This function lookups the number of measurement in @table in the
+     database referenced by @connection.
+    '''
+
+    cursor = connection.cursor()
+    cursor.execute('''SELECT COUNT(timestamp) FROM %s
+      WHERE privacy_can_share=1;''' % __sanitize(table))
+    count = next(cursor)[0]
+    if not count:
+        return 0
+    return count
+
+def __lookup_count(connection, table):
+
+    '''
+     This function lookups the number of measurement in @table in the
+     database referenced by @connection.
+    '''
+
+    cursor = connection.cursor()
+    cursor.execute('SELECT COUNT(timestamp) FROM %s;' % __sanitize(table))
+    count = next(cursor)[0]
+    if not count:
+        return 0
+    return count
+
+def __lookup_first(connection, table):
+
+    '''
+     This function lookups the first measurement in @table in the
+     database referenced by @connection.
+    '''
+
+    cursor = connection.cursor()
+    cursor.execute('SELECT MIN(timestamp) FROM %s;' % __sanitize(table))
+    minimum = next(cursor)[0]
+    if not minimum:
+        return 0
+    return minimum
+
+def __lookup_last(connection, table):
+
+    '''
+     This function lookups the last measurement in @table in the
+     database referenced by @connection.
+    '''
+
+    cursor = connection.cursor()
+    cursor.execute('SELECT MAX(timestamp) FROM %s;' % __sanitize(table))
+    maximum = next(cursor)[0]
+    if not maximum:
+        return 0
+    return maximum
+
+def __copyto_after(source, destination, table, limit):
+
+    '''
+     Copy from @source to @destination the content of @table
+     which has timestamp greater than @limit.
+    '''
+
+    query = None
+
+    cursor = source.cursor()
+    cursor.execute('SELECT * FROM %s WHERE timestamp > ?;'
+                   % __sanitize(table), (limit,))
+    for result in cursor:
+        dictionary = dict(result)
+
+        # Otherwise we overwrite our data
+        del dictionary['id']
+
+        # Construct the query
+        if not query:
+            vector = ['INSERT INTO %s(' % __sanitize(table) ]
+            for name in dictionary.keys():
+                vector.append(name)
+                vector.append(', ')
+            vector[-1] = ') VALUES('
+            for name in dictionary.keys():
+                vector.append(':%s' % name)
+                vector.append(', ')
+            vector[-1] = ');'
+
+            query = "".join(vector)
+
+        # Insert
+        destination.execute(query, dictionary)
+
+    # Save
+    destination.commit()
+
+def __anonimize(connection, table):
+
+    ''' Anonimize @table of the database referenced by @connection '''
+
+    connection.execute('''UPDATE %s SET internal_address="0.0.0.0",
+                          real_address="0.0.0.0" WHERE
+                          privacy_can_share != 1;''' % table)
+    connection.commit()
+    connection.execute('VACUUM')
+    connection.commit()
+
+def __format_date(thedate):
+    ''' Format the data in readable mode '''
+    return time.ctime(int(thedate))
+
+def main():
+
+    ''' Dispatch control to various subcommands '''
+
+    syslog.openlog('neubot [tool]', syslog.LOG_PERROR, syslog.LOG_USER)
+
+    try:
+        options, arguments = getopt.getopt(sys.argv[1:], 'AMiflo:')
+    except getopt.error:
+        sys.exit('Usage: tool.py -AMi [-fl] [-o output] input ...')
+
+    outfile = 'database.sqlite3'
+    flag_anonimize = False
+    flag_merge = False
+    flag_pretty = False
+    flag_info = False
+    flag_force = False
+
+    for name, value in options:
+
+        if name == '-A':
+            flag_anonimize = True
+        elif name == '-M':
+            flag_merge = True
+        elif name == '-i':
+            flag_info = True
+
+        elif name == '-f':
+            flag_force = True
+        elif name == '-l':
+            flag_pretty = True
+
+        elif name == '-o':
+            outfile = value
+
+    if flag_anonimize + flag_merge + flag_info > 1:
+        sys.exit('Only one of -AMiz may be specified')
+    if flag_anonimize + flag_merge + flag_info == 0:
+        sys.exit('Usage: tool.py -AMiz [-fl] [-o output] input ...')
+
+    #
+    # Collate takes a set of (possibly compressed) databases
+    # and appends to the output database only the set of results
+    # that is missing.  So, it is safe to invoke it each time
+    # against the same set of files.
+    # Note that merge will skip old databases unless the
+    # force parameter is True.
+    #
+    if flag_merge:
+
+        if not os.path.exists(outfile):
+            __create_empty(outfile)
+        elif not os.path.isfile(outfile):
+            raise RuntimeError('Not a file')
+
+        destination = __connect(outfile)
+        __migrate(destination)
+
+        for argument in arguments:
+
+            # Decompress if needed
+            if argument.endswith('.bz2'):
+                syslog.syslog(syslog.LOG_INFO, 'decompress %s' % argument)
+                argument = __decompress(argument)
+
+            # Query configuration
+            source = __connect(argument)
+            info = __info(source)
+            version = decimal.Decimal(info['version'])
+
+            # Skip old databases
+            if version <= decimal.Decimal('2.0') and not flag_force:
+                syslog.syslog(syslog.LOG_WARNING, 'skipping old %s' % argument)
+                continue
+
+            # Migrate
+            syslog.syslog(syslog.LOG_INFO, 'migrate %s' % argument)
+            __migrate(source)
+
+            # Save
+            for table in ('speedtest', 'bittorrent'):
+                syslog.syslog(syslog.LOG_INFO, 'merging table %s' % table)
+                limit = __lookup_last(destination, table)
+                __copyto_after(source, destination, table, limit)
+
+    #
+    # Print information on the database so that one can get
+    # an idea of the information contained.
+    #
+    elif flag_info:
+
+        for argument in arguments:
+            target = __connect(argument)
+            __migrate(target)
+
+            dictionary = __info(target)
+            dictionary['filename'] = argument
+            for table in ('speedtest', 'bittorrent'):
+                dictionary[table] = {}
+                dictionary[table]['count'] = __lookup_count(target, table)
+                dictionary[table]['can_share'] = __lookup_can_share(target,
+                                                                    table)
+                first = __lookup_first(target, table)
+                last = __lookup_last(target, table)
+
+                if flag_pretty:
+                    first = __format_date(first)
+                    last = __format_date(last)
+
+                dictionary[table]['first'] = first
+                dictionary[table]['last'] = last
+
+            indent = None
+            if flag_pretty:
+                indent = 4
+
+            json.dump(dictionary, sys.stdout, indent=indent)
+
+            if flag_pretty:
+                sys.stdout.write("\n")
+
+    #
+    # Zap all internet addresses with no can_share permission
+    # attached regardless of the other settings.
+    #
+    elif flag_anonimize:
+
+        for argument in arguments:
+            target = __connect(argument)
+            __migrate(target)
+            __anonimize(target, 'speedtest')
+            __anonimize(target, 'bittorrent')
+
+if __name__ == '__main__':
+    main()
