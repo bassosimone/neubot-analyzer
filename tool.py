@@ -229,7 +229,7 @@ def __anonimize(connection, table):
     connection.commit()
 
 def __format_date(thedate):
-    ''' Format the data in readable mode '''
+    ''' Make a timestamp much more readable '''
     return time.ctime(int(thedate))
 
 def main():
@@ -268,9 +268,9 @@ def main():
             outfile = value
 
     if flag_anonimize + flag_merge + flag_info > 1:
-        sys.exit('Only one of -AMiz may be specified')
+        sys.exit('Only one of -AMi may be specified')
     if flag_anonimize + flag_merge + flag_info == 0:
-        sys.exit('Usage: tool.py -AMiz [-fl] [-o output] input ...')
+        sys.exit('Usage: tool.py -AMi [-fl] [-o output] input ...')
 
     #
     # Collate takes a set of (possibly compressed) databases
