@@ -232,6 +232,58 @@ def __format_date(thedate):
     ''' Make a timestamp much more readable '''
     return time.ctime(int(thedate))
 
+def __follow_instances(connection, table, instances):
+
+    '''
+     This function walks the @table of the database referenced by
+     @connection and per Neubot instance statistics.  It saves the
+     results in @instances.
+    '''
+
+    cursor = connection.cursor()
+    cursor.execute('SELECT * FROM %s' % __sanitize(table))
+    for result in cursor:
+
+        # Get instance ID
+        instanceid = result['uuid']
+        if not instanceid:
+            continue
+
+        # Get per-instance stats
+        if not instanceid in instances:
+            instances[instanceid] = {
+                                     'bittorrent': {
+                                                    'dload': {},
+                                                    'upload': {},
+                                                    'rtt': {},
+                                                   },
+                                     'speedtest': {
+                                                    'dload': {},
+                                                    'upload': {},
+                                                    'rtt': {},
+                                                  },
+                                    }
+
+        stats = instances[instanceid][table]
+
+        # Update download (bytes/s -> kilobit/s)
+        scaled = int(result['download_speed'] / 125)
+        if not scaled in stats['dload']:
+            stats['dload'][scaled] = 0
+        stats['dload'][scaled] += 1
+
+        # Update upload (bytes/s -> kilobit/s)
+        scaled = int(result['upload_speed'] / 125)
+        if not scaled in stats['upload']:
+            stats['upload'][scaled] = 0
+        stats['upload'][scaled] += 1
+
+        # Update RTT (seconds -> milliseconds)
+        scaled = int(result['connect_time'] * 1000)
+        if not scaled in stats['rtt']:
+            stats['rtt'][scaled] = 0
+        stats['rtt'][scaled] += 1
+
 def main():
 
     ''' Dispatch control to various subcommands '''
@@ -239,15 +291,16 @@ def main():
     syslog.openlog('neubot [tool]', syslog.LOG_PERROR, syslog.LOG_USER)
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'AMiflo:')
+        options, arguments = getopt.getopt(sys.argv[1:], 'AMIiflo:')
     except getopt.error:
-        sys.exit('Usage: tool.py -AMi [-fl] [-o output] input ...')
+        sys.exit('Usage: tool.py -AMIi [-fl] [-o output] input ...')
 
     outfile = 'database.sqlite3'
     flag_anonimize = False
     flag_merge = False
     flag_pretty = False
     flag_info = False
+    flag_instances = False
     flag_force = False
 
     for name, value in options:
@@ -258,6 +311,8 @@ def main():
             flag_merge = True
         elif name == '-i':
             flag_info = True
+        elif name == '-I':
+            flag_instances = True
 
         elif name == '-f':
             flag_force = True
@@ -267,10 +322,10 @@ def main():
         elif name == '-o':
             outfile = value
 
-    if flag_anonimize + flag_merge + flag_info > 1:
-        sys.exit('Only one of -AMi may be specified')
-    if flag_anonimize + flag_merge + flag_info == 0:
-        sys.exit('Usage: tool.py -AMi [-fl] [-o output] input ...')
+    if flag_anonimize + flag_merge + flag_info + flag_instances > 1:
+        sys.exit('Only one of -AMIi may be specified')
+    if flag_anonimize + flag_merge + flag_info + flag_instances == 0:
+        sys.exit('Usage: tool.py -AMIi [-fl] [-o output] input ...')
 
     #
     # Collate takes a set of (possibly compressed) databases
@@ -364,6 +419,29 @@ def main():
             __migrate(target)
             __anonimize(target, 'speedtest')
             __anonimize(target, 'bittorrent')
+
+    #
+    # Walk the database and collect statistics per each
+    # existing instance of Neubot
+    #
+    elif flag_instances:
+
+        instances = {}
+        for argument in arguments:
+            target = __connect(argument)
+            __migrate(target)
+
+            __follow_instances(target, 'speedtest', instances)
+            __follow_instances(target, 'bittorrent', instances)
+
+        sort_keys, indent = False, None
+        if flag_pretty:
+            sort_keys, indent = True, 4
+
+        json.dump(instances, sys.stdout, indent=indent, sort_keys=sort_keys)
+
+        if flag_pretty:
+            sys.stdout.write("\n")
 
 if __name__ == '__main__':
     main()
