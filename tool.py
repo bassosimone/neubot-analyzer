@@ -321,11 +321,12 @@ def main():
     syslog.openlog('neubot [tool]', syslog.LOG_PERROR, syslog.LOG_USER)
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'AMIiflo:')
+        options, arguments = getopt.getopt(sys.argv[1:], 'AMIiflo:P')
     except getopt.error:
-        sys.exit('Usage: tool.py -AMIi [-fl] [-o output] input ...')
+        sys.exit('Usage: tool.py -AMIiP [-fl] [-o output] input ...')
 
     outfile = 'database.sqlite3'
+    flag_per_provider = False
     flag_anonimize = False
     flag_merge = False
     flag_pretty = False
@@ -343,6 +344,8 @@ def main():
             flag_info = True
         elif name == '-I':
             flag_instances = True
+        elif name == '-P':
+            flag_per_provider = True
 
         elif name == '-f':
             flag_force = True
@@ -352,10 +355,13 @@ def main():
         elif name == '-o':
             outfile = value
 
-    if flag_anonimize + flag_merge + flag_info + flag_instances > 1:
-        sys.exit('Only one of -AMIi may be specified')
-    if flag_anonimize + flag_merge + flag_info + flag_instances == 0:
-        sys.exit('Usage: tool.py -AMIi [-fl] [-o output] input ...')
+    sum_all = flag_anonimize + flag_merge + flag_info + flag_instances \
+                  + flag_per_provider
+
+    if sum_all > 1:
+        sys.exit('Only one of -AMIiP may be specified')
+    if sum_all == 0:
+        sys.exit('Usage: tool.py -AMIiP [-fl] [-o output] input ...')
 
     #
     # Collate takes a set of (possibly compressed) databases
@@ -469,6 +475,69 @@ def main():
             sort_keys, indent = True, 4
 
         json.dump(instances, sys.stdout, indent=indent, sort_keys=sort_keys)
+
+        if flag_pretty:
+            sys.stdout.write("\n")
+
+    #
+    # Create per-instance statistics and then postprocess
+    # it to extract statistics per-provider.
+    #
+    elif flag_per_provider:
+
+        instances = {}
+        for argument in arguments:
+            target = __connect(argument)
+            __migrate(target)
+
+            __follow_instances(target, 'speedtest', instances)
+            __follow_instances(target, 'bittorrent', instances)
+
+        providers = {}
+
+        for instance in instances.values():
+            for provider_name, instance_stats in instance.iteritems():
+
+                # Create per-provider statistics
+                if not provider_name in providers:
+                    providers[provider_name] = \
+                      {
+                        'bittorrent':
+                          {
+                            'dload': collections.defaultdict(int),
+                            'upload': collections.defaultdict(int),
+                            'rtt': collections.defaultdict(int),
+                          },
+                        'speedtest':
+                          {
+                            'dload': collections.defaultdict(int),
+                            'upload': collections.defaultdict(int),
+                            'rtt': collections.defaultdict(int),
+                          },
+                        'addresses': collections.defaultdict(int),
+                        'countries': collections.defaultdict(int),
+                        'cities': collections.defaultdict(int),
+                      }
+
+                provider = providers[provider_name]
+
+                # Copy addresses, countries, cities
+                for table in ('addresses', 'countries', 'cities'):
+                    for key, value in instance_stats[table].iteritems():
+                        provider[table][key] += value
+
+                # Copy bittorrent, speedtest
+                for table in ('bittorrent', 'speedtest'):
+                    for feature in ('dload', 'upload', 'rtt'):
+                        for key, value in instance_stats[table][
+                                        feature].iteritems():
+                            provider[table][feature][key] += value
+
+        sort_keys, indent = False, None
+        if flag_pretty:
+            sort_keys, indent = True, 4
+
+        json.dump(providers, sys.stdout, indent=indent, sort_keys=sort_keys)
 
         if flag_pretty:
             sys.stdout.write("\n")
