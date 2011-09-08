@@ -266,20 +266,20 @@ def __follow_instances(connection, table, instances):
 
         stats = instances[instanceid][table]
 
-        # Update download (bytes/s -> kilobit/s)
-        scaled = int(result['download_speed'] / 125)
+        # Update download (bytes/s -> megabit/s)
+        scaled = int(round(result['download_speed'] / 125000))
         if not scaled in stats['dload']:
             stats['dload'][scaled] = 0
         stats['dload'][scaled] += 1
 
-        # Update upload (bytes/s -> kilobit/s)
-        scaled = int(result['upload_speed'] / 125)
+        # Update upload (bytes/s -> megabit/s)
+        scaled = int(round(result['upload_speed'] / 125000))
         if not scaled in stats['upload']:
             stats['upload'][scaled] = 0
         stats['upload'][scaled] += 1
 
         # Update RTT (seconds -> milliseconds)
-        scaled = int(result['connect_time'] * 1000)
+        scaled = int(round(result['connect_time'] * 100)) * 10
         if not scaled in stats['rtt']:
             stats['rtt'][scaled] = 0
         stats['rtt'][scaled] += 1
