@@ -268,6 +268,9 @@ def __follow_instances(connection, table, instances):
         if not organization:
             continue
 
+        # Avoid issues with provider name
+        organization = organization.decode('latin-1')
+
         if not organization in instance:
             instance[organization] = \
               {
