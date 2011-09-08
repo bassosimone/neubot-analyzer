@@ -23,7 +23,6 @@
 '''
 
 import collections
-import GeoIP
 import decimal
 import getopt
 import json
@@ -35,16 +34,40 @@ import re
 import sys
 import os
 
-sys.path.insert(0, '/home/simone/git/neubot')
+sys.path.insert(0, '../neubot')
 
 from neubot.database import DATABASE
 from neubot.database import migrate
 
-GEOLOC_CITY = GeoIP.open('/usr/local/share/GeoIP/GeoLiteCity.dat',
-                         GeoIP.GEOIP_STANDARD)
+class __FakeGeoIP:
+    ''' Fake geoip provider '''
 
-GEOLOC_ASN = GeoIP.open('/usr/local/share/GeoIP/GeoIPASNum.dat',
-                         GeoIP.GEOIP_STANDARD)
+    def record_by_addr(self, address):
+        ''' Fake record_by_addr method '''
+
+    def org_by_addr(self, address):
+        ''' Fake org_by_addr method '''
+
+def __get_geoloc_city():
+    ''' Return a geoloc city provider '''
+    try:
+        import GeoIP
+        return GeoIP.open('/usr/local/share/GeoIP/GeoLiteCity.dat',
+                          GeoIP.GEOIP_STANDARD)
+    except:
+        return __FakeGeoIP()
+
+def __get_geoloc_asn():
+    ''' Return a geoloc asn provider '''
+    try:
+        import GeoIP
+        return GeoIP.open('/usr/local/share/GeoIP/GeoIPASNum.dat',
+                          GeoIP.GEOIP_STANDARD)
+    except:
+        return __FakeGeoIP()
+
+GEOLOC_CITY = __get_geoloc_city()
+GEOLOC_ASN = __get_geoloc_asn()
 
 def __connect(path):
 
@@ -240,90 +263,121 @@ def __format_date(thedate):
     ''' Make a timestamp much more readable '''
     return time.ctime(int(thedate))
 
-def __follow_instances(connection, table, instances):
+def __build_histogram(connection, table, histogram,
+                      per_instance=False, per_provider=False,
+                      per_country=False, per_city=False):
 
     '''
      This function walks the @table of the database referenced by
-     @connection and per Neubot instance statistics.  It saves the
-     results in @instances.
+     @connection and collects statistics.  Depending on the params
+     the result dictionary contains more or less aggregated data.
     '''
 
     cursor = connection.cursor()
     cursor.execute('SELECT * FROM %s' % __sanitize(table))
-    for result in cursor:
+    for row in cursor:
 
-        # Get instance ID
-        instanceid = result['uuid']
-        if not instanceid:
-            continue
+        stats = histogram
 
-        # Create per-instance stats
-        if not instanceid in instances:
-            instances[instanceid] = {}
+        #
+        # Optional: per instance
+        #
+        if per_instance:
+            instance = row['uuid']
+            if not instance:
+                continue
 
-        instance = instances[instanceid]
+            if not instance in stats:
+                stats[instance] = {}
 
-        # Maintain first and last test information
-        if not 'first_test' in instance:
-            instance['first_test'] = result['timestamp']
-        if not 'last_test' in instance:
-            instance['last_test'] = result['timestamp']
-        if result['timestamp'] > instance['last_test']:
-            instance['last_test'] = result['timestamp']
+            stats = stats[instance]
 
-        # Create per-provider system stats
-        organization = GEOLOC_ASN.org_by_addr(result['real_address'])
-        if not organization:
-            continue
+        #
+        # Optional: per provider
+        #
+        if per_provider:
+            provider = GEOLOC_ASN.org_by_addr(row['real_address'])
+            if not provider:
+                continue
 
-        # Avoid issues with provider name
-        organization = organization.decode('latin-1')
+            # Avoid issues with provider name
+            provider = provider.decode('latin-1')
 
-        if not organization in instance:
-            instance[organization] = \
-              {
-                'bittorrent':
-                  {
-                    'dload': collections.defaultdict(int),
-                    'upload': collections.defaultdict(int),
-                    'rtt': collections.defaultdict(int),
-                  },
-                'speedtest':
-                  {
-                    'dload': collections.defaultdict(int),
-                    'upload': collections.defaultdict(int),
-                    'rtt': collections.defaultdict(int),
-                  },
-                'addresses': collections.defaultdict(int),
-                'countries': collections.defaultdict(int),
-                'cities': collections.defaultdict(int),
-              }
+            if not provider in stats:
+                stats[provider] = {}
 
-        provider = instance[organization]
+            stats = stats[provider]
 
-        # Fill per-provider stats
-        provider['addresses'][result['real_address']] += 1
+        #
+        # Optional: per country
+        #
+        if per_country:
+            geodata = GEOLOC_CITY.record_by_addr(row['real_address'])
+            if not geodata or not geodata['country_code']:
+                continue
 
-        geodata = GEOLOC_CITY.record_by_addr(result['real_address'])
-        if geodata:
-            if geodata['country_code']:
-                provider['countries'][geodata['country_code'].decode('latin-1')] += 1
-            if geodata['city']:
-                provider['cities'][geodata['city'].decode('latin-1')] += 1
+            # Avoid issues with country code
+            country = geodata['country_code'].decode('latin-1')
 
-        stats = provider[table]
+            if not country in stats:
+                stats[country] = {}
 
-        # Update download (bytes/s -> megabit/s)
-        scaled = int(round(result['download_speed'] / 125000))
-        stats['dload'][scaled] += 1
+            stats = stats[country]
 
-        # Update upload (bytes/s -> megabit/s)
-        scaled = int(round(result['upload_speed'] / 125000))
-        stats['upload'][scaled] += 1
+        #
+        # Optional: per city
+        #
+        if per_city:
+            geodata = GEOLOC_CITY.record_by_addr(row['real_address'])
+            if not geodata or not geodata['city']:
+                continue
 
-        # Update RTT (seconds -> milliseconds)
-        scaled = int(round(result['connect_time'] * 100)) * 10
-        stats['rtt'][scaled] += 1
+            # Avoid issues with city name
+            city = geodata['city'].decode('latin-1')
+
+            if not city in stats:
+                stats[city] = {}
+
+            stats = stats[city]
+
+        #
+        # Save stats
+        #
+        if not stats:
+            stats.update({
+                            'bittorrent':
+                              {
+                                'dload': collections.defaultdict(int),
+                                'upload': collections.defaultdict(int),
+                                'rtt': collections.defaultdict(int),
+                              },
+                            'speedtest':
+                              {
+                                'dload': collections.defaultdict(int),
+                                'upload': collections.defaultdict(int),
+                                'rtt': collections.defaultdict(int),
+                              },
+                            'first_test': 0,
+                            'last_test': 0,
+                          })
+
+        # First and last test info
+        if not stats['first_test']:
+            stats['first_test'] = row['timestamp']
+        if row['timestamp'] > stats['last_test']:
+            stats['last_test'] = row['timestamp']
+
+        # Download (bytes/s -> megabit/s)
+        scaled = int(round(row['download_speed'] / 125000))
+        stats[table]['dload'][scaled] += 1
+
+        # Upload (bytes/s -> megabit/s)
+        scaled = int(round(row['upload_speed'] / 1250)) / 100
+        stats[table]['upload'][scaled] += 1
+
+        # RTT (seconds -> milliseconds)
+        scaled = int(round(row['connect_time'] * 100)) * 10
+        stats[table]['rtt'][scaled] += 1
 
 def main():
 
@@ -332,17 +386,16 @@ def main():
     syslog.openlog('neubot [tool]', syslog.LOG_PERROR, syslog.LOG_USER)
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'AMIiflo:P')
+        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflo:P')
     except getopt.error:
-        sys.exit('Usage: tool.py -AMIiP [-fl] [-o output] input ...')
+        sys.exit('Usage: tool.py -AMHiP [-fl] [-o output] input ...')
 
     outfile = 'database.sqlite3'
-    flag_per_provider = False
+    flag_histogram = False
     flag_anonimize = False
     flag_merge = False
     flag_pretty = False
     flag_info = False
-    flag_instances = False
     flag_force = False
 
     for name, value in options:
@@ -353,10 +406,8 @@ def main():
             flag_merge = True
         elif name == '-i':
             flag_info = True
-        elif name == '-I':
-            flag_instances = True
-        elif name == '-P':
-            flag_per_provider = True
+        elif name == '-H':
+            flag_histogram = True
 
         elif name == '-f':
             flag_force = True
@@ -366,13 +417,12 @@ def main():
         elif name == '-o':
             outfile = value
 
-    sum_all = flag_anonimize + flag_merge + flag_info + flag_instances \
-                  + flag_per_provider
+    sum_all = flag_anonimize + flag_merge + flag_info + flag_histogram
 
     if sum_all > 1:
-        sys.exit('Only one of -AMIiP may be specified')
+        sys.exit('Only one of -AMHiP may be specified')
     if sum_all == 0:
-        sys.exit('Usage: tool.py -AMIiP [-fl] [-o output] input ...')
+        sys.exit('Usage: tool.py -AMHiP [-fl] [-o output] input ...')
 
     #
     # Collate takes a set of (possibly compressed) databases
@@ -468,91 +518,23 @@ def main():
             __anonimize(target, 'bittorrent')
 
     #
-    # Walk the database and collect statistics per each
-    # existing instance of Neubot
+    # Walk the database and collect statistics where the
+    # aggregation level depends on command line options
     #
-    elif flag_instances:
+    elif flag_histogram:
 
-        instances = {}
+        histogram = {}
         for argument in arguments:
             target = __connect(argument)
             __migrate(target)
-
-            __follow_instances(target, 'speedtest', instances)
-            __follow_instances(target, 'bittorrent', instances)
+            for table in ('speedtest', 'bittorrent'):
+                __build_histogram(target, table, histogram)
 
         sort_keys, indent = False, None
         if flag_pretty:
             sort_keys, indent = True, 4
 
-            for instance in instances.itervalues():
-                for key in ('first_test', 'last_test'):
-                    instance[key] = __format_date(instance[key])
-
-        json.dump(instances, sys.stdout, indent=indent, sort_keys=sort_keys)
-
-        if flag_pretty:
-            sys.stdout.write("\n")
-
-    #
-    # Create per-instance statistics and then postprocess
-    # it to extract statistics per-provider.
-    #
-    elif flag_per_provider:
-
-        instances = {}
-        for argument in arguments:
-            target = __connect(argument)
-            __migrate(target)
-
-            __follow_instances(target, 'speedtest', instances)
-            __follow_instances(target, 'bittorrent', instances)
-
-        providers = {}
-
-        for instance in instances.values():
-            for provider_name, instance_stats in instance.iteritems():
-
-                # Create per-provider statistics
-                if not provider_name in providers:
-                    providers[provider_name] = \
-                      {
-                        'bittorrent':
-                          {
-                            'dload': collections.defaultdict(int),
-                            'upload': collections.defaultdict(int),
-                            'rtt': collections.defaultdict(int),
-                          },
-                        'speedtest':
-                          {
-                            'dload': collections.defaultdict(int),
-                            'upload': collections.defaultdict(int),
-                            'rtt': collections.defaultdict(int),
-                          },
-                        'addresses': collections.defaultdict(int),
-                        'countries': collections.defaultdict(int),
-                        'cities': collections.defaultdict(int),
-                      }
-
-                provider = providers[provider_name]
-
-                # Copy addresses, countries, cities
-                for table in ('addresses', 'countries', 'cities'):
-                    for key, value in instance_stats[table].iteritems():
-                        provider[table][key] += value
-
-                # Copy bittorrent, speedtest
-                for table in ('bittorrent', 'speedtest'):
-                    for feature in ('dload', 'upload', 'rtt'):
-                        for key, value in instance_stats[table][
-                                        feature].iteritems():
-                            provider[table][feature][key] += value
-
-        sort_keys, indent = False, None
-        if flag_pretty:
-            sort_keys, indent = True, 4
-
-        json.dump(providers, sys.stdout, indent=indent, sort_keys=sort_keys)
+        json.dump(histogram, sys.stdout, indent=indent, sort_keys=sort_keys)
 
         if flag_pretty:
             sys.stdout.write("\n")
