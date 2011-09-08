@@ -263,9 +263,7 @@ def __format_date(thedate):
     ''' Make a timestamp much more readable '''
     return time.ctime(int(thedate))
 
-def __build_histogram(connection, table, histogram,
-                      per_instance=False, per_provider=False,
-                      per_country=False, per_city=False):
+def __build_histogram(connection, table, histogram, *modifiers):
 
     '''
      This function walks the @table of the database referenced by
@@ -278,67 +276,68 @@ def __build_histogram(connection, table, histogram,
     for row in cursor:
 
         stats = histogram
+        skip = False
 
-        #
-        # Optional: per instance
-        #
-        if per_instance:
-            instance = row['uuid']
-            if not instance:
-                continue
+        for modifier in modifiers:
 
-            if not instance in stats:
-                stats[instance] = {}
+            if modifier == 'per_instance':
+                instance = row['uuid']
+                if not instance:
+                    skip = True
+                    break
 
-            stats = stats[instance]
+                if not instance in stats:
+                    stats[instance] = {}
 
-        #
-        # Optional: per provider
-        #
-        if per_provider:
-            provider = GEOLOC_ASN.org_by_addr(row['real_address'])
-            if not provider:
-                continue
+                stats = stats[instance]
 
-            # Avoid issues with provider name
-            provider = provider.decode('latin-1')
+            elif modifier == 'per_provider':
+                provider = GEOLOC_ASN.org_by_addr(row['real_address'])
+                if not provider:
+                    skip = True
+                    break
 
-            if not provider in stats:
-                stats[provider] = {}
+                # Avoid issues with provider name
+                provider = provider.decode('latin-1')
 
-            stats = stats[provider]
+                if not provider in stats:
+                    stats[provider] = {}
 
-        #
-        # Optional: per country
-        #
-        if per_country:
-            geodata = GEOLOC_CITY.record_by_addr(row['real_address'])
-            if not geodata or not geodata['country_code']:
-                continue
+                stats = stats[provider]
 
-            # Avoid issues with country code
-            country = geodata['country_code'].decode('latin-1')
+            elif modifier == 'per_country':
+                geodata = GEOLOC_CITY.record_by_addr(row['real_address'])
+                if not geodata or not geodata['country_code']:
+                    skip = True
+                    break
 
-            if not country in stats:
-                stats[country] = {}
+                # Avoid issues with country code
+                country = geodata['country_code'].decode('latin-1')
 
-            stats = stats[country]
+                if not country in stats:
+                    stats[country] = {}
 
-        #
-        # Optional: per city
-        #
-        if per_city:
-            geodata = GEOLOC_CITY.record_by_addr(row['real_address'])
-            if not geodata or not geodata['city']:
-                continue
+                stats = stats[country]
 
-            # Avoid issues with city name
-            city = geodata['city'].decode('latin-1')
+            elif modifier == 'per_city':
+                geodata = GEOLOC_CITY.record_by_addr(row['real_address'])
+                if not geodata or not geodata['city']:
+                    skip = True
+                    break
 
-            if not city in stats:
-                stats[city] = {}
+                # Avoid issues with city name
+                city = geodata['city'].decode('latin-1')
 
-            stats = stats[city]
+                if not city in stats:
+                    stats[city] = {}
+
+                stats = stats[city]
+
+            else:
+                raise RuntimeError('Invalid modifier')
+
+        if skip:
+            continue
 
         #
         # Save stats
