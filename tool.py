@@ -22,6 +22,8 @@
  so might not work for you out of the box.
 '''
 
+import collections
+import GeoIP
 import decimal
 import getopt
 import json
@@ -37,6 +39,12 @@ sys.path.insert(0, '/home/simone/git/neubot')
 
 from neubot.database import DATABASE
 from neubot.database import migrate
+
+GEOLOC_CITY = GeoIP.open('/usr/local/share/GeoIP/GeoLiteCity.dat',
+                         GeoIP.GEOIP_STANDARD)
+
+GEOLOC_ASN = GeoIP.open('/usr/local/share/GeoIP/GeoIPASNum.dat',
+                         GeoIP.GEOIP_STANDARD)
 
 def __connect(path):
 
@@ -249,39 +257,61 @@ def __follow_instances(connection, table, instances):
         if not instanceid:
             continue
 
-        # Get per-instance stats
+        # Create per-instance stats
         if not instanceid in instances:
-            instances[instanceid] = {
-                                     'bittorrent': {
-                                                    'dload': {},
-                                                    'upload': {},
-                                                    'rtt': {},
-                                                   },
-                                     'speedtest': {
-                                                    'dload': {},
-                                                    'upload': {},
-                                                    'rtt': {},
-                                                  },
-                                    }
+            instances[instanceid] = {}
 
-        stats = instances[instanceid][table]
+        instance = instances[instanceid]
+
+        # Create per-provider system stats
+        organization = GEOLOC_ASN.org_by_addr(result['real_address'])
+        if not organization:
+            continue
+
+        if not organization in instance:
+            instance[organization] = \
+              {
+                'bittorrent':
+                  {
+                    'dload': collections.defaultdict(int),
+                    'upload': collections.defaultdict(int),
+                    'rtt': collections.defaultdict(int),
+                  },
+                'speedtest':
+                  {
+                    'dload': collections.defaultdict(int),
+                    'upload': collections.defaultdict(int),
+                    'rtt': collections.defaultdict(int),
+                  },
+                'addresses': collections.defaultdict(int),
+                'countries': collections.defaultdict(int),
+                'cities': collections.defaultdict(int),
+              }
+
+        provider = instance[organization]
+
+        # Fill per-provider stats
+        provider['addresses'][result['real_address']] += 1
+
+        geodata = GEOLOC_CITY.record_by_addr(result['real_address'])
+        if geodata:
+            if geodata['country_code']:
+                provider['countries'][geodata['country_code'].decode('latin-1')] += 1
+            if geodata['city']:
+                provider['cities'][geodata['city'].decode('latin-1')] += 1
+
+        stats = provider[table]
 
         # Update download (bytes/s -> megabit/s)
         scaled = int(round(result['download_speed'] / 125000))
-        if not scaled in stats['dload']:
-            stats['dload'][scaled] = 0
         stats['dload'][scaled] += 1
 
         # Update upload (bytes/s -> megabit/s)
         scaled = int(round(result['upload_speed'] / 125000))
-        if not scaled in stats['upload']:
-            stats['upload'][scaled] = 0
         stats['upload'][scaled] += 1
 
         # Update RTT (seconds -> milliseconds)
         scaled = int(round(result['connect_time'] * 100)) * 10
-        if not scaled in stats['rtt']:
-            stats['rtt'][scaled] = 0
         stats['rtt'][scaled] += 1
 
 def main():
