@@ -263,6 +263,14 @@ def __follow_instances(connection, table, instances):
 
         instance = instances[instanceid]
 
+        # Maintain first and last test information
+        if not 'first_test' in instance:
+            instance['first_test'] = result['timestamp']
+        if not 'last_test' in instance:
+            instance['last_test'] = result['timestamp']
+        if result['timestamp'] > instance['last_test']:
+            instance['last_test'] = result['timestamp']
+
         # Create per-provider system stats
         organization = GEOLOC_ASN.org_by_addr(result['real_address'])
         if not organization:
@@ -476,6 +484,10 @@ def main():
         sort_keys, indent = False, None
         if flag_pretty:
             sort_keys, indent = True, 4
+
+            for instance in instances.itervalues():
+                for key in ('first_test', 'last_test'):
+                    instance[key] = __format_date(instance[key])
 
         json.dump(instances, sys.stdout, indent=indent, sort_keys=sort_keys)
 
