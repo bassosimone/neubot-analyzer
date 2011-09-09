@@ -333,6 +333,22 @@ def __build_histogram(connection, table, histogram, *modifiers):
 
                 stats = stats[city]
 
+            elif modifier == 'per_hour':
+
+                #
+                # FIXME The problem with the hour calculator
+                # below is that it does not take into account
+                # the time zone.  Since we're interested in
+                # Italy at the moment and we're in summer we
+                # optimize for CEST.
+                #
+                hour = (((row['timestamp']/3600) + 2) % 24)
+
+                if not hour in stats:
+                    stats[hour] = {}
+
+                stats = stats[hour]
+
             else:
                 raise RuntimeError('Invalid modifier')
 
