@@ -263,7 +263,7 @@ def __format_date(thedate):
     ''' Make a timestamp much more readable '''
     return time.ctime(int(thedate))
 
-def __build_histogram(connection, table, histogram, *modifiers):
+def __build_histogram(connection, table, histogram, modifiers):
 
     '''
      This function walks the @table of the database referenced by
@@ -350,7 +350,7 @@ def __build_histogram(connection, table, histogram, *modifiers):
                 stats = stats[hour]
 
             else:
-                raise RuntimeError('Invalid modifier')
+                raise RuntimeError('Invalid modifier: %s' % modifier)
 
         if skip:
             continue
@@ -401,11 +401,13 @@ def main():
     syslog.openlog('neubot [tool]', syslog.LOG_PERROR, syslog.LOG_USER)
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflo:P')
+        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflo:PX:')
     except getopt.error:
-        sys.exit('Usage: tool.py -AMHiP [-fl] [-o output] input ...')
+        sys.exit('Usage: tool.py -AMHiP [-fl] [-o output] [-X modifier] input ...')
 
     outfile = 'database.sqlite3'
+    modifiers = []
+
     flag_histogram = False
     flag_anonimize = False
     flag_merge = False
@@ -423,6 +425,8 @@ def main():
             flag_info = True
         elif name == '-H':
             flag_histogram = True
+        elif name == '-X':
+            modifiers.append(value)
 
         elif name == '-f':
             flag_force = True
@@ -437,7 +441,7 @@ def main():
     if sum_all > 1:
         sys.exit('Only one of -AMHiP may be specified')
     if sum_all == 0:
-        sys.exit('Usage: tool.py -AMHiP [-fl] [-o output] input ...')
+        sys.exit('Usage: tool.py -AMHiP [-fl] [-o output] [-X modifier] input ...')
 
     #
     # Collate takes a set of (possibly compressed) databases
@@ -543,7 +547,7 @@ def main():
             target = __connect(argument)
             __migrate(target)
             for table in ('speedtest', 'bittorrent'):
-                __build_histogram(target, table, histogram)
+                __build_histogram(target, table, histogram, modifiers)
 
         sort_keys, indent = False, None
         if flag_pretty:
