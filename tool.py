@@ -23,6 +23,7 @@
 '''
 
 import collections
+import logging
 import decimal
 import getopt
 import json
@@ -33,6 +34,9 @@ import bz2
 import re
 import sys
 import os
+
+from matplotlib import pyplot
+from matplotlib import dates
 
 sys.path.insert(0, '../neubot')
 
@@ -416,9 +420,9 @@ def main():
     syslog.openlog('neubot [tool]', syslog.LOG_PERROR, syslog.LOG_USER)
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflo:X:')
+        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflNo:X:')
     except getopt.error:
-        sys.exit('Usage: tool.py -AMHi [-fl] [-o output] [-X modifier] input ...')
+        sys.exit('Usage: tool.py -AMHiN [-fl] [-o output] [-X modifier] input ...')
 
     outfile = 'database.sqlite3'
     modifiers = []
@@ -429,6 +433,7 @@ def main():
     flag_pretty = False
     flag_info = False
     flag_force = False
+    flag_number = False
 
     for name, value in options:
 
@@ -440,6 +445,8 @@ def main():
             flag_info = True
         elif name == '-H':
             flag_histogram = True
+        elif name == '-N':
+            flag_number = True
 
         elif name == '-X':
             modifiers.append(value)
@@ -452,12 +459,13 @@ def main():
         elif name == '-o':
             outfile = value
 
-    sum_all = flag_anonimize + flag_merge + flag_info + flag_histogram
+    sum_all = flag_anonimize + flag_merge + flag_info + flag_histogram + \
+              flag_number
 
     if sum_all > 1:
-        sys.exit('Only one of -AMHi may be specified')
+        sys.exit('Only one of -AMHiN may be specified')
     if sum_all == 0:
-        sys.exit('Usage: tool.py -AMHi [-fl] [-o output] [-X modifier] input ...')
+        sys.exit('Usage: tool.py -AMHiN [-fl] [-o output] [-X modifier] input ...')
 
     #
     # Collate takes a set of (possibly compressed) databases
@@ -575,6 +583,43 @@ def main():
 
         if flag_pretty:
             sys.stdout.write("\n")
+
+    #
+    # Compute the cumulated number of active agents at a
+    # given time period exploting info on the first and
+    # on the last test.
+    #
+    elif flag_number:
+
+        number_of_agents = collections.defaultdict(int)
+
+        histogram = {}
+        for argument in arguments:
+            target = __connect(argument)
+            __migrate(target)
+            for table in ('speedtest', 'bittorrent'):
+                __build_histogram(target, table, histogram, ['per_instance'])
+
+        first, last = 0, 0
+        for instance, stats in histogram.iteritems():
+            number_of_agents[stats['first_test']] += 1
+            number_of_agents[stats['last_test']] -= 1
+            if not first and not last:
+                first, last = stats['first_test'], stats['last_test']
+            if first > stats['first_test']:
+                first = stats['first_test']
+            if last < stats['last_test']:
+                last = stats['last_test']
+        tics = int((last - first)/4)
+
+        cumulated, xdata, ydata = 0, [], []
+        for when in sorted(number_of_agents.keys()):
+            cumulated += number_of_agents[when]
+            xdata.append(dates.epoch2num(when))
+            ydata.append(cumulated)
+
+        pyplot.plot_date(xdata, ydata)
+        pyplot.show()
 
 if __name__ == '__main__':
     main()
