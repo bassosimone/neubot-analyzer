@@ -416,9 +416,9 @@ def main():
     syslog.openlog('neubot [tool]', syslog.LOG_PERROR, syslog.LOG_USER)
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflo:PX:')
+        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflo:X:')
     except getopt.error:
-        sys.exit('Usage: tool.py -AMHiP [-fl] [-o output] [-X modifier] input ...')
+        sys.exit('Usage: tool.py -AMHi [-fl] [-o output] [-X modifier] input ...')
 
     outfile = 'database.sqlite3'
     modifiers = []
@@ -440,6 +440,7 @@ def main():
             flag_info = True
         elif name == '-H':
             flag_histogram = True
+
         elif name == '-X':
             modifiers.append(value)
 
@@ -454,9 +455,9 @@ def main():
     sum_all = flag_anonimize + flag_merge + flag_info + flag_histogram
 
     if sum_all > 1:
-        sys.exit('Only one of -AMHiP may be specified')
+        sys.exit('Only one of -AMHi may be specified')
     if sum_all == 0:
-        sys.exit('Usage: tool.py -AMHiP [-fl] [-o output] [-X modifier] input ...')
+        sys.exit('Usage: tool.py -AMHi [-fl] [-o output] [-X modifier] input ...')
 
     #
     # Collate takes a set of (possibly compressed) databases
