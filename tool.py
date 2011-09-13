@@ -420,9 +420,9 @@ def main():
     syslog.openlog('neubot [tool]', syslog.LOG_PERROR, syslog.LOG_USER)
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflNo:X:')
+        options, arguments = getopt.getopt(sys.argv[1:], 'AMHiflNo:TX:')
     except getopt.error:
-        sys.exit('Usage: tool.py -AMHiN [-fl] [-o output] [-X modifier] input ...')
+        sys.exit('Usage: tool.py -AMHiNT [-fl] [-o output] [-X modifier] input ...')
 
     outfile = 'database.sqlite3'
     modifiers = []
@@ -434,6 +434,7 @@ def main():
     flag_info = False
     flag_force = False
     flag_number = False
+    flag_tests = False
 
     for name, value in options:
 
@@ -447,6 +448,8 @@ def main():
             flag_histogram = True
         elif name == '-N':
             flag_number = True
+        elif name == '-T':
+            flag_tests = True
 
         elif name == '-X':
             modifiers.append(value)
@@ -460,12 +463,12 @@ def main():
             outfile = value
 
     sum_all = flag_anonimize + flag_merge + flag_info + flag_histogram + \
-              flag_number
+              flag_number + flag_tests
 
     if sum_all > 1:
-        sys.exit('Only one of -AMHiN may be specified')
+        sys.exit('Only one of -AMHiNT may be specified')
     if sum_all == 0:
-        sys.exit('Usage: tool.py -AMHiN [-fl] [-o output] [-X modifier] input ...')
+        sys.exit('Usage: tool.py -AMHiNT [-fl] [-o output] [-X modifier] input ...')
 
     #
     # Collate takes a set of (possibly compressed) databases
@@ -617,6 +620,29 @@ def main():
             cumulated += number_of_agents[when]
             xdata.append(dates.epoch2num(when))
             ydata.append(cumulated)
+
+        pyplot.plot_date(xdata, ydata)
+        pyplot.show()
+
+    # Tries to count the number of tests per day.
+    elif flag_tests:
+
+        xdata, ydata = [], []
+        helper = collections.defaultdict(int)
+
+        for argument in arguments:
+            target = __connect(argument)
+            __migrate(target)
+            for table in ('speedtest', 'bittorrent'):
+                cursor = target.cursor()
+                cursor.execute('SELECT * FROM %s;' % __sanitize(table))
+                for row in cursor:
+                    when = int(dates.epoch2num(row['timestamp']))
+                    helper[when] += 1
+
+        for when in sorted(helper.keys()):
+            xdata.append(when)
+            ydata.append(helper[when])
 
         pyplot.plot_date(xdata, ydata)
         pyplot.show()
