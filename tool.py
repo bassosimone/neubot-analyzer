@@ -23,7 +23,6 @@
 '''
 
 import collections
-import logging
 import decimal
 import getopt
 import json
@@ -603,17 +602,9 @@ def main():
             for table in ('speedtest', 'bittorrent'):
                 __build_histogram(target, table, histogram, ['per_instance'])
 
-        first, last = 0, 0
         for instance, stats in histogram.iteritems():
             number_of_agents[stats['first_test']] += 1
             number_of_agents[stats['last_test']] -= 1
-            if not first and not last:
-                first, last = stats['first_test'], stats['last_test']
-            if first > stats['first_test']:
-                first = stats['first_test']
-            if last < stats['last_test']:
-                last = stats['last_test']
-        tics = int((last - first)/4)
 
         cumulated, xdata, ydata = 0, [], []
         for when in sorted(number_of_agents.keys()):
