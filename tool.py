@@ -603,13 +603,13 @@ def main():
                 __build_histogram(target, table, histogram, ['per_instance'])
 
         for instance, stats in histogram.iteritems():
-            number_of_agents[stats['first_test']] += 1
-            number_of_agents[stats['last_test']] -= 1
+            number_of_agents[int(dates.epoch2num(stats['first_test']))] += 1
+            number_of_agents[int(dates.epoch2num(stats['last_test']))] -= 1
 
         cumulated, xdata, ydata = 0, [], []
         for when in sorted(number_of_agents.keys()):
             cumulated += number_of_agents[when]
-            xdata.append(dates.epoch2num(when))
+            xdata.append(when)
             ydata.append(cumulated)
 
         pyplot.plot_date(xdata, ydata)
