@@ -595,16 +595,32 @@ def main():
 
         number_of_agents = collections.defaultdict(int)
 
+        maximum = 0
         histogram = {}
         for argument in arguments:
             target = __connect(argument)
             __migrate(target)
             for table in ('speedtest', 'bittorrent'):
                 __build_histogram(target, table, histogram, ['per_instance'])
+                if maximum == 0:
+                    maximum = __lookup_last(target, table)
+                else:
+                    tmp = __lookup_last(target, table)
+                    if tmp > maximum:
+                        maximum = tmp
 
+        maximum = int(dates.epoch2num(maximum))
         for instance, stats in histogram.iteritems():
-            number_of_agents[int(dates.epoch2num(stats['first_test']))] += 1
-            number_of_agents[int(dates.epoch2num(stats['last_test']))] -= 1
+            first_test = int(dates.epoch2num(stats['first_test']))
+            last_test = int(dates.epoch2num(stats['last_test']))
+            number_of_agents[first_test] += 1
+            #
+            # We consider nearly inactive a Neubot that
+            # has not performed a measurement in the last
+            # three days.
+            #
+            if maximum - last_test > 3:
+                number_of_agents[last_test] -= 1
 
         cumulated, xdata, ydata = 0, [], []
         for when in sorted(number_of_agents.keys()):
