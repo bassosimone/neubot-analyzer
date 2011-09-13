@@ -588,45 +588,26 @@ def main():
 
     #
     # Compute the cumulated number of active agents at a
-    # given time period exploting info on the first and
-    # on the last test.
+    # given time period.
     #
     elif flag_number:
 
-        number_of_agents = collections.defaultdict(int)
+        number_of_agents = collections.defaultdict(set)
 
-        maximum = 0
-        histogram = {}
         for argument in arguments:
             target = __connect(argument)
             __migrate(target)
             for table in ('speedtest', 'bittorrent'):
-                __build_histogram(target, table, histogram, ['per_instance'])
-                if maximum == 0:
-                    maximum = __lookup_last(target, table)
-                else:
-                    tmp = __lookup_last(target, table)
-                    if tmp > maximum:
-                        maximum = tmp
-
-        maximum = int(dates.epoch2num(maximum))
-        for instance, stats in histogram.iteritems():
-            first_test = int(dates.epoch2num(stats['first_test']))
-            last_test = int(dates.epoch2num(stats['last_test']))
-            number_of_agents[first_test] += 1
-            #
-            # We consider nearly inactive a Neubot that
-            # has not performed a measurement in the last
-            # three days.
-            #
-            if maximum - last_test > 3:
-                number_of_agents[last_test] -= 1
+                cursor = target.cursor()
+                cursor.execute('SELECT * FROM %s;' % __sanitize(table))
+                for row in cursor:
+                    when = int(dates.epoch2num(row['timestamp']))
+                    number_of_agents[when].add(row['uuid'])
 
         cumulated, xdata, ydata = 0, [], []
         for when in sorted(number_of_agents.keys()):
-            cumulated += number_of_agents[when]
             xdata.append(when)
-            ydata.append(cumulated)
+            ydata.append(len(number_of_agents[when]))
 
         pyplot.plot_date(xdata, ydata)
         pyplot.show()
