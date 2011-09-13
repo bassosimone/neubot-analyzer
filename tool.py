@@ -156,13 +156,28 @@ def __sanitize(table):
 def __lookup_can_share(connection, table):
 
     '''
-     This function lookups the number of measurement in @table in the
-     database referenced by @connection.
+     This function lookups the number of measurement with the
+     can_share permission in @table in the database referenced
+     by @connection.
     '''
 
     cursor = connection.cursor()
     cursor.execute('''SELECT COUNT(timestamp) FROM %s
       WHERE privacy_can_share=1;''' % __sanitize(table))
+    count = next(cursor)[0]
+    if not count:
+        return 0
+    return count
+
+def __lookup_count_uuids(connection, table):
+
+    '''
+     This function lookups the number of uuids in @table in the
+     database referenced by @connection.
+    '''
+
+    cursor = connection.cursor()
+    cursor.execute('SELECT COUNT(DISTINCT(uuid)) FROM %s;' % __sanitize(table))
     count = next(cursor)[0]
     if not count:
         return 0
@@ -502,6 +517,8 @@ def main():
             dictionary['filename'] = argument
             for table in ('speedtest', 'bittorrent'):
                 dictionary[table] = {}
+                dictionary[table]['count_uuids'] = __lookup_count_uuids(target,
+                                                                        table)
                 dictionary[table]['count'] = __lookup_count(target, table)
                 dictionary[table]['can_share'] = __lookup_can_share(target,
                                                                     table)
