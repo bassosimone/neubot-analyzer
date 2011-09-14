@@ -380,15 +380,15 @@ def __build_histogram(connection, table, histogram, modifiers):
             stats.update({
                             'bittorrent':
                               {
-                                'dload': collections.defaultdict(int),
-                                'upload': collections.defaultdict(int),
-                                'rtt': collections.defaultdict(int),
+                                'dload': [],
+                                'upload': [],
+                                'rtt': [],
                               },
                             'speedtest':
                               {
-                                'dload': collections.defaultdict(int),
-                                'upload': collections.defaultdict(int),
-                                'rtt': collections.defaultdict(int),
+                                'dload': [],
+                                'upload': [],
+                                'rtt': [],
                               },
                             'first_test': 0,
                             'last_test': 0,
@@ -400,17 +400,9 @@ def __build_histogram(connection, table, histogram, modifiers):
         if row['timestamp'] > stats['last_test']:
             stats['last_test'] = row['timestamp']
 
-        # Download (bytes/s -> megabit/s)
-        scaled = int(round(row['download_speed'] / 125000))
-        stats[table]['dload'][scaled] += 1
-
-        # Upload (bytes/s -> megabit/s)
-        scaled = int(round(row['upload_speed'] / 1250)) / 100
-        stats[table]['upload'][scaled] += 1
-
-        # RTT (seconds -> milliseconds)
-        scaled = int(round(row['connect_time'] * 100)) * 10
-        stats[table]['rtt'][scaled] += 1
+        stats[table]['dload'].append(row['download_speed'])
+        stats[table]['upload'].append(row['upload_speed'])
+        stats[table]['rtt'].append(row['connect_time'])
 
 def main():
 
