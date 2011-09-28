@@ -1,3 +1,5 @@
 This repository contains the scripts that I use to analyze
-the set of Neubot databases.
+the set of Neubot databases.  I will eventually move the
+code to `neubot` GitHub repository when it becomes more mature
+than now.
 	- Simone
