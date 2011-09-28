@@ -270,10 +270,48 @@ def __anonimize(connection, table):
 
     ''' Anonimize @table of the database referenced by @connection '''
 
-    connection.execute('''UPDATE %s SET internal_address="0.0.0.0",
-                          real_address="0.0.0.0" WHERE
-                          privacy_can_share != 1;''' % table)
-    connection.commit()
+    # Add columns
+    connection.execute(''' ALTER TABLE %s ADD COLUMN asname TEXT;'''
+                                % __sanitize(table))
+    connection.execute(''' ALTER TABLE %s ADD COLUMN country_code TEXT;'''
+                                % __sanitize(table))
+    connection.execute(''' ALTER TABLE %s ADD COLUMN city TEXT;'''
+                                % __sanitize(table))
+
+    # Gather location and provider info
+    cursor = connection.cursor()
+    cursor.execute('SELECT * FROM %s' % __sanitize(table))
+    for row in cursor:
+
+        # Avoid violating MaxMind copyright
+        if int(row['privacy_can_share']):
+            continue
+
+        # Ditch user address
+        connection.execute('''UPDATE %s SET internal_address="0.0.0.0",
+          real_address="0.0.0.0" WHERE id=?;''' %
+          __sanitize(table), (row['id'],))
+
+        # Provider information
+        asname = GEOLOC_ASN.org_by_addr(row['real_address'])
+        if asname:
+            asname = asname.decode('latin-1')
+            connection.execute(''' UPDATE %s SET asname=?
+              WHERE id=?''' % __sanitize(table), (asname, row['id']))
+
+        # Geo information
+        geodata = GEOLOC_CITY.record_by_addr(row['real_address'])
+        if geodata:
+            if geodata['country_code']:
+                country_code = geodata['country_code'].decode('latin-1')
+                connection.execute(''' UPDATE %s SET country_code=?
+                  WHERE id=?''' % __sanitize(table), (country_code, row['id']))
+            if geodata['city']:
+                city = geodata['city'].decode('latin-1')
+                connection.execute(''' UPDATE %s SET city=?
+                  WHERE id=?''' % __sanitize(table), (city, row['id']))
+
+    # Rebuild the database
     connection.execute('VACUUM')
     connection.commit()
 
