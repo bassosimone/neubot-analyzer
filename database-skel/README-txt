@@ -3,15 +3,17 @@
                        <http://www.neubot.org/data>
 
 This file provides a brief description of the Neubot database published
-on neubot.org website in sqlite3 format.
+on neubot.org website.  We publish the database both in sqlite3 and in
+CSV format.
 
-To understand what the results in the database represent you need to read
-at least the whole ``technical questions'' section of Neubot FAQs::
+To understand what the content of the  database you need to read at least
+the whole ``technical questions'' section of Neubot FAQs::
 
     http://www.neubot.org/faq#technical-questions
 
-You should also review the history of the files that implements the
-transmission tests:
+You should also review the history of the files that implement the
+transmission tests.  At least, it is recommended that you look at the
+history of the following files::
 
     https://github.com/neubot/neubot/blob/master/neubot/bittorrent/peer.py
     https://github.com/neubot/neubot/blob/master/neubot/net/stream.py
