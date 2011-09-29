@@ -1,4 +1,3 @@
-
 This database is available under CC0 1.0 Universal license.
 
 You can copy, modify, distribute and perform the work, even for
@@ -15,8 +14,10 @@ See <http://www.neubot.org/data> for more information on the database.
 For more information on the CC0 1.0 Universal license, see
 <http://creativecommons.org/publicdomain/zero/1.0/>
 
-This product includes GeoLite data created by MaxMind, available from
-<http://www.maxmind.com/>.  In particular, we have replaced Internet
+This database includes data obtained using GeoLite by MaxMind, available
+from <http://www.maxmind.com/>.  In particular, we have replaced Internet
 addresses that we had not the permission to publish with the provider
 and geolocation info obtained using MaxMind databases.
+No provider/geolocation and IP address pairs have been reproduced in our
+database.
 
