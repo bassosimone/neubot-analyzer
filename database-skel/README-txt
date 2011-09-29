@@ -6,7 +6,7 @@ This file provides a brief description of the Neubot database published
 on neubot.org website.  We publish the database both in sqlite3 and in
 CSV format.
 
-To understand what the content of the  database you need to read at least
+To understand what content of the database you need to read at least
 the whole ``technical questions'' section of Neubot FAQs::
 
     http://www.neubot.org/faq#technical-questions
