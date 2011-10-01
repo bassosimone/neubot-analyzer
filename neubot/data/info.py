@@ -133,10 +133,12 @@ def main():
     for table in ('speedtest', 'bittorrent'):
         dictionary[table] = {}
         dictionary[table]['count_uuids'] = __info_uuids(connection, table)
-        dictionary[table]['count'] = __info_tests(connection, table)
-        dictionary[table]['can_share'] = __info_publishable(connection, table)
+        dictionary[table]['count_tests'] = __info_tests(connection, table)
+        dictionary[table]['count_tests_publishable'] = \
+                                          __info_publishable(connection, table)
         dictionary[table]['geolocated'] = __info_geolocated(connection, table)
         dictionary[table]['anonymized'] = __info_anonymized(connection, table)
+
         first = __info_test_first(connection, table)
         last = __info_test_last(connection, table)
 
