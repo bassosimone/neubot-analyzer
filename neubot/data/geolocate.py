@@ -68,7 +68,7 @@ def main():
         syslog.syslog(syslog.LOG_INFO, 'Table: %s' % table)
 
         # Add columns
-        connection.execute(''' ALTER TABLE %s ADD COLUMN org TEXT;'''
+        connection.execute(''' ALTER TABLE %s ADD COLUMN asname TEXT;'''
                                     % table)
         connection.execute(''' ALTER TABLE %s ADD COLUMN country_code TEXT;'''
                                     % table)
@@ -82,7 +82,7 @@ def main():
             org = __geoip_query_org(geoip_org, result['real_address'])
             country_code, city = __geoip_query_location(geoip_city,
               result['real_address'])
-            connection.execute(''' UPDATE %s SET org=?, city=?,
+            connection.execute(''' UPDATE %s SET asname=?, city=?,
               country_code=? WHERE id=?; ''' % table, (org,
               city, country_code, result['id']))
 

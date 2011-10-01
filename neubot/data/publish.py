@@ -55,7 +55,7 @@ def main():
             raise RuntimeError('Not properly anonymized')
 
         # Do not disclose bits of maxmind database
-        connection.execute('''UPDATE %s SET city='', org='', country_code=''
+        connection.execute('''UPDATE %s SET city='', asname='', country_code=''
            WHERE privacy_can_share != 0;''' % table)
 
     # Rebuild from scratch
