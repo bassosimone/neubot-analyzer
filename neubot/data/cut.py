@@ -30,7 +30,9 @@ def __mktime(string, fmt):
     # Force GMT using timegm()
     return int(calendar.timegm(time.strptime(string, fmt)))
 
-USAGE = 'Usage: cut.py [--format fmt] [--since date] [--until date] file'
+USAGE = '''\
+Usage: cut.py [-D name=value] file
+Macros: city=CITY format=DATE_FMT since=DATE until=DATE'''
 
 def main():
 
@@ -38,28 +40,35 @@ def main():
 
     syslog.openlog('merge.py', syslog.LOG_PERROR, syslog.LOG_USER)
     since, until = 0, int(time.time())
+    city = None
     fmt = '%d-%m-%Y'
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], '',
-          ['format=', 'since=', 'until='])
+        options, arguments = getopt.getopt(sys.argv[1:], 'D:')
     except getopt.error:
         sys.exit(USAGE)
     if len(arguments) != 1:
         sys.exit(USAGE)
 
     for name, value in options:
-        if name == '--format':
-            fmt = value
-        elif name == '--since':
-            since = __mktime(value, fmt)
-        elif value == '--until':
-            until = __mktime(value, fmt)
+        if name == '-D':
+            name, value = value.split('=', 1)
+            if name == 'city':
+                city = value
+            elif name == 'format':
+                fmt = value
+            elif name == 'since':
+                since = __mktime(value, fmt)
+            elif value == 'until':
+                until = __mktime(value, fmt)
 
     connection = sqlite3.connect(arguments[0])
     for table in ('speedtest', 'bittorrent'):
         connection.execute(''' DELETE FROM %s WHERE timestamp < ?
           OR timestamp >= ?; ''' % table, (since, until))
+        if city:
+            connection.execute(''' DELETE FROM %s WHERE city != '?';'''
+                                     % table, (city,))
 
     connection.execute(' VACUUM; ')
     connection.commit()
