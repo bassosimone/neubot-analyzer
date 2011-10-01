@@ -31,16 +31,19 @@ def main():
 
     syslog.openlog('count.py', syslog.LOG_PERROR, syslog.LOG_USER)
     count_users = False
+    outfile = None
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'u')
+        options, arguments = getopt.getopt(sys.argv[1:], 'o:u')
     except getopt.error:
-        sys.exit('Usage: count.py [-u] file')
+        sys.exit('Usage: count.py [-o file] [-u] file')
     if len(arguments) != 1:
-        sys.exit('Usage: count.py [-u] file')
+        sys.exit('Usage: count.py [-o file] [-u] file')
 
-    for tpl in options:
-        if tpl[0] == '-u':
+    for name, value in options:
+        if name == '-o':
+            outfile = value
+        elif name == '-u':
             count_users = True
 
     connection = sqlite3.connect(arguments[0])
@@ -61,8 +64,22 @@ def main():
             uuid_list = set(uuid_list)
         ydata.append(len(uuid_list))
 
-    pylab.plot_date(xdata, ydata)
-    pylab.show()
+    result = pylab.plot_date(xdata, ydata)
+    pylab.xlabel('Date', fontsize=16)
+    if count_users:
+        pylab.suptitle('Number of neubots per day', fontsize=20)
+        pylab.ylabel('Number of neubots', fontsize=16)
+    else:
+        pylab.suptitle('Number of tests per day', fontsize=20)
+        pylab.ylabel('Number of tests', fontsize=16)
+
+    # Pretty dates
+    pylab.gcf().autofmt_xdate()
+
+    if outfile:
+        pylab.savefig(outfile, dpi=256, transparent=True)
+    else:
+        pylab.show()
 
 if __name__ == '__main__':
     main()
