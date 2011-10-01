@@ -59,7 +59,7 @@ def main():
                 fmt = value
             elif name == 'since':
                 since = __mktime(value, fmt)
-            elif value == 'until':
+            elif name == 'until':
                 until = __mktime(value, fmt)
 
     connection = sqlite3.connect(arguments[0])
