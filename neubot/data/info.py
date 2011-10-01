@@ -62,6 +62,26 @@ def __info_publishable(connection, table):
         return 0
     return count
 
+def __info_geolocated(connection, table):
+    ''' Tells whether the database is geolocated '''
+    cursor = connection.cursor()
+    cursor.execute('SELECT * FROM %s LIMIT 1;' % table)
+    for description in cursor.description:
+        if description[0] == 'city':
+            return True
+    return False
+
+def __info_anonymized(connection, table):
+    ''' Tells whether the database is anonimized '''
+    for address in ('real_address', 'internal_address'):
+        cursor = connection.cursor()
+        cursor.execute('''SELECT COUNT(*) FROM %s WHERE privacy_can_share != 1
+                          AND %s != '0.0.0.0';''' % (table, address))
+        count = next(cursor)[0]
+        if count > 0:
+            return False
+    return True
+
 def __info_test_first(connection, table):
     ''' Timestamp of first test '''
     cursor = connection.cursor()
@@ -115,6 +135,8 @@ def main():
         dictionary[table]['count_uuids'] = __info_uuids(connection, table)
         dictionary[table]['count'] = __info_tests(connection, table)
         dictionary[table]['can_share'] = __info_publishable(connection, table)
+        dictionary[table]['geolocated'] = __info_geolocated(connection, table)
+        dictionary[table]['anonymized'] = __info_anonymized(connection, table)
         first = __info_test_first(connection, table)
         last = __info_test_last(connection, table)
 
@@ -125,10 +147,10 @@ def main():
         dictionary[table]['first'] = first
         dictionary[table]['last'] = last
 
-    indent = None
+    indent, sort_keys = None, False
     if pretty:
-        indent = 4
-    json.dump(dictionary, outfp, indent=indent)
+        indent, sort_keys = 4, True
+    json.dump(dictionary, outfp, indent=indent, sort_keys=sort_keys)
     if pretty:
         outfp.write("\n")
 
