@@ -62,6 +62,7 @@ def main():
     syslog.syslog(syslog.LOG_INFO, 'Geolocate: %s' % arguments[0])
     connection = sqlite3.connect(arguments[0])
     connection.row_factory = sqlite3.Row
+    connection.text_factory = str
 
     for table in ('speedtest', 'bittorrent'):
         syslog.syslog(syslog.LOG_INFO, 'Table: %s' % table)
