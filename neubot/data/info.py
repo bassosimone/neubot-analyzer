@@ -73,14 +73,12 @@ def __info_geolocated(connection, table):
 
 def __info_anonymized(connection, table):
     ''' Tells whether the database is anonimized '''
-    for address in ('real_address', 'internal_address'):
-        cursor = connection.cursor()
-        cursor.execute('''SELECT COUNT(*) FROM %s WHERE privacy_can_share != 1
-                          AND %s != '0.0.0.0';''' % (table, address))
-        count = next(cursor)[0]
-        if count > 0:
-            return False
-    return True
+    cursor = connection.cursor()
+    cursor.execute('''SELECT COUNT(*) FROM %s WHERE privacy_can_share = 0
+      AND (real_address != '0.0.0.0' OR internal_address != '0.0.0.0');'''
+      % table)
+    count = next(cursor)[0]
+    return count == 0
 
 def __info_test_first(connection, table):
     ''' Timestamp of first test '''
