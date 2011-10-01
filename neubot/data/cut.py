@@ -67,7 +67,7 @@ def main():
         connection.execute(''' DELETE FROM %s WHERE timestamp < ?
           OR timestamp >= ?; ''' % table, (since, until))
         if city:
-            connection.execute(''' DELETE FROM %s WHERE city != '?';'''
+            connection.execute(''' DELETE FROM %s WHERE city != ?;'''
                                      % table, (city,))
 
     connection.execute(' VACUUM; ')
