@@ -38,7 +38,7 @@ def main():
 
     ''' Cut Neubot database '''
 
-    syslog.openlog('merge.py', syslog.LOG_PERROR, syslog.LOG_USER)
+    syslog.openlog('cut.py', syslog.LOG_PERROR, syslog.LOG_USER)
     since, until = 0, int(time.time())
     city = None
     fmt = '%d-%m-%Y'
