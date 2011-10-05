@@ -89,11 +89,21 @@ def __build_hist(connection, table, hist, groups):
         if skip:
             continue
 
-        # Save
+        # Copy stats
         if not table in stats:
             stats[table] = collections.defaultdict(list)
         for key, value in row.items():
             stats[table][key].append(value)
+
+        # Add window
+        for direction in ('download', 'upload'):
+            value = row['%s_speed' % direction] * row['connect_time']
+            stats[table]['%s_wnd' % direction].append(value)
+
+        # Add speed normalized to 100 ms
+        for direction in ('download', 'upload'):
+            value = (row['%s_speed' % direction] / row['connect_time']) * 0.1
+            stats[table]['%s_norm' % direction].append(value)
 
 USAGE = '''\
 Usage: hist_build.py [-d] [-D group] [-o file] file
