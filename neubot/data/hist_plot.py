@@ -95,28 +95,34 @@ def main():
         elif name == '-X':
             exclude = True
 
-    hist = json.load(open(arguments[0], 'r'))
+    ohist = json.load(open(arguments[0], 'r'))
     for selection in selections:
-        hist = hist[selection]
+        hist = ohist
+        for facet in selection.split('/')[1:]:
+            hist = hist[facet]
 
-    nhist = []
-    for elem in hist:
-        if scalingfactor != None:
-            elem = elem * scalingfactor
-        if lowerbound != None and elem < lowerbound:
-            if exclude:
-                continue
-            elem = lowerbound
-        if upperbound != None and elem > upperbound:
-            if exclude:
-                continue
-            elem = upperbound
-        nhist.append(elem)
-    hist = nhist
+        nhist = []
+        for elem in hist:
+            if scalingfactor != None:
+                elem = elem * scalingfactor
+            if lowerbound != None and elem < lowerbound:
+                if exclude:
+                    continue
+                elem = lowerbound
+            if upperbound != None and elem > upperbound:
+                if exclude:
+                    continue
+                elem = upperbound
+            nhist.append(elem)
+        hist = nhist
 
-    pylab.grid(True, color='black')
-    pylab.hist(hist, bins=bins, cumulative=cumulative, normed=normed,
-               histtype=histtype)
+        pylab.grid(True, color='black')
+        pylab.hist(hist, bins=bins, cumulative=cumulative, normed=normed,
+                   histtype=histtype, label=selection)
+
+    legend = pylab.legend(loc=4)
+    frame = legend.get_frame()
+    frame.set_alpha(0.25)
 
     if outfile:
         pylab.savefig(outfile, dpi=256, transparent=True)
