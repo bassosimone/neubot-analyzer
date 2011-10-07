@@ -22,31 +22,31 @@ import getopt
 import json
 import pylab
 import sys
-import syslog
 
 USAGE = '''
-Usage: hist_plot.py [-CNSX] [-D selection] [-F scaling-factor]
-                    [-L lower-bound] [-n bins] [-o file]
-                    [-U upper-bound] file
+Usage: hist_plot.py [-CENS] [-D selection] [-F scaling-factor]
+                    [-L lower-bound] [-n bins] [-o file] [-T title]
+                    [-U upper-bound] [-X label] [-Y label] file
 
 Options:
     -C                  : cumulative mode
     -D selection        : select only this facet
+    -E                  : exclude out of bounds
     -F scaling-factor   : scaling factor
     -L lower-bound      : distribution lower-bound
     -N                  : normed mode
     -n bins             : number of bins
     -o file             : output file
     -S                  : step histogram mode
+    -T title            : title
     -U upper-bound      : distribution upper-bound
-    -X                  : exclude out of bounds
+    -X label            : X axis label
+    -Y label            : Y axis label
 '''
 
 def main():
 
     ''' Info on Neubot database '''
-
-    syslog.openlog('hist_plot.py', syslog.LOG_PERROR, syslog.LOG_USER)
 
     selections = []
     scalingfactor = None
@@ -58,9 +58,13 @@ def main():
     histtype = 'bar'
     upperbound = None
     exclude = False
+    xlabel = ''
+    title = ''
+    ylabel = ''
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'CD:F:L:Nn:o:SU:X')
+        options, arguments = getopt.getopt(sys.argv[1:],
+                                 'CED:F:L:Nn:o:ST:U:X:Y:')
     except getopt.error:
         sys.exit(USAGE)
     if len(arguments) != 1:
@@ -71,6 +75,8 @@ def main():
             cumulative = True
         elif name == '-D':
             selections.append(value)
+        elif name == '-E':
+            exclude = True
         elif name == '-F':
             if value == 'Mbit/s':
                 scalingfactor = 8.0/(1000 * 1000)
@@ -78,6 +84,8 @@ def main():
                 scalingfactor = 8.0/(1000)
             elif value == 'ms':
                 scalingfactor = 1000.0
+            elif value == 'KBytes':
+                scalingfactor = 1.0/1024
             else:
                 scalingfactor = float(value)
         elif name == '-L':
@@ -90,10 +98,14 @@ def main():
             outfile = value
         elif name == '-S':
             histtype = 'step'
+        elif name == '-T':
+            title = value
         elif name == '-U':
             upperbound = float(value)
         elif name == '-X':
-            exclude = True
+            xlabel = value
+        elif name == '-Y':
+            ylabel = value
 
     ohist = json.load(open(arguments[0], 'r'))
     for selection in selections:
@@ -116,9 +128,15 @@ def main():
             nhist.append(elem)
         hist = nhist
 
+        label = selection.split('/')[1]
+
         pylab.grid(True, color='black')
         pylab.hist(hist, bins=bins, cumulative=cumulative, normed=normed,
-                   histtype=histtype, label=selection)
+                   histtype=histtype, label=label)
+
+    pylab.xlabel(xlabel, fontsize=16)
+    pylab.ylabel(ylabel, fontsize=16)
+    pylab.title(title, fontsize=20)
 
     legend = pylab.legend(loc=4)
     frame = legend.get_frame()
