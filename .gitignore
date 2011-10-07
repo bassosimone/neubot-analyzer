@@ -2,3 +2,4 @@ aica2011
 *.sqlite3
 *.sqlite
 *.json
+*.sh
