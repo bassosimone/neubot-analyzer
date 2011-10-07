@@ -25,6 +25,7 @@ import json
 import sqlite3
 import sys
 import syslog
+import uuid
 
 def __open(path):
     ''' Open GeoIP database given the @path '''
@@ -60,6 +61,8 @@ def __build_hist(connection, table, hist, groups):
      the result dictionary contains more or less aggregated data.
     '''
 
+    uuidcache = {}
+
     cursor = connection.cursor()
     cursor.execute('SELECT * FROM %s;' % table)
     for row in cursor:
@@ -89,6 +92,21 @@ def __build_hist(connection, table, hist, groups):
         if skip:
             continue
 
+        # Zap unneeded data
+        del row['id'], row['internal_address'], row['neubot_version'], \
+          row['platform'], row['privacy_can_collect'], \
+          row['privacy_informed'], row['privacy_can_share'], \
+          row['timestamp'], row['remote_address'], row['real_address']
+
+        #
+        # Replace uuid.
+        # We want to keep the uuid information to be able to
+        # count the number of users per provider.
+        #
+        if not row['uuid'] in uuidcache:
+            uuidcache[ row['uuid'] ] = str(uuid.uuid4())
+        row['uuid'] = uuidcache[ row['uuid'] ]
+
         # Copy stats
         if not table in stats:
             stats[table] = collections.defaultdict(list)
@@ -99,11 +117,6 @@ def __build_hist(connection, table, hist, groups):
         for direction in ('download', 'upload'):
             value = row['%s_speed' % direction] * row['connect_time']
             stats[table]['%s_wnd' % direction].append(value)
-
-        # Add speed normalized to 100 ms
-        for direction in ('download', 'upload'):
-            value = (row['%s_speed' % direction] / row['connect_time']) * 0.1
-            stats[table]['%s_norm' % direction].append(value)
 
 USAGE = '''\
 Usage: hist_build.py [-d] [-D group] [-o file] file
