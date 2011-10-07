@@ -115,7 +115,7 @@ def __build_hist(connection, table, hist, groups):
 
         # Add window
         for direction in ('download', 'upload'):
-            value = row['%s_speed' % direction] * row['connect_time']
+            value = row['%s_speed' % direction] * row['latency']
             stats[table]['%s_wnd' % direction].append(value)
 
 USAGE = '''\
