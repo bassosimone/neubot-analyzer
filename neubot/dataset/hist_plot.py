@@ -107,6 +107,8 @@ def main():
         elif name == '-Y':
             ylabel = value
 
+    data = []
+
     ohist = json.load(open(arguments[0], 'r'))
     for selection in selections:
         hist = ohist
@@ -129,11 +131,35 @@ def main():
         hist = nhist
 
         label = selection.split('/')[1]
+        ydata, xdata = pylab.hist(hist, bins=bins, cumulative=cumulative,
+                      normed=normed, histtype=histtype, label=label)[:2]
+        data.append((xdata, ydata, label))
 
-        pylab.grid(True, color='black')
-        pylab.hist(hist, bins=bins, cumulative=cumulative, normed=normed,
-                   histtype=histtype, label=label)
+    #
+    # XXX Replace the histogram with the cumulative distribution
+    # line.  We need to replace binds edges with the value in the
+    # middle of the bin.
+    #
 
+    xmax = 0
+    for index in range(len(data)):
+        xdata, ydata, label = data[index]
+        diff = (xdata[1] - xdata[0])/2
+        xdata = map(lambda elem: elem + diff, xdata)
+        del xdata[-1]
+        if max(xdata) > xmax:
+            xmax = max(xdata)
+        data[index] = xdata, ydata, label
+
+    pylab.clf()
+    for xdata, ydata, label in data:
+        if max(xdata) < xmax:
+            xdata.append(xmax)
+            ydata = list(ydata)
+            ydata.append(1)
+        pylab.plot(xdata, ydata, label=label)
+
+    pylab.grid(True, color='black')
     pylab.xlabel(xlabel, fontsize=16)
     pylab.ylabel(ylabel, fontsize=16)
     pylab.title(title, fontsize=20)
