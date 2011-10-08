@@ -84,7 +84,7 @@ def main():
                 scalingfactor = 8.0/(1000)
             elif value == 'ms':
                 scalingfactor = 1000.0
-            elif value == 'KBytes':
+            elif value == 'KByte':
                 scalingfactor = 1.0/1024
             else:
                 scalingfactor = float(value)
@@ -160,9 +160,9 @@ def main():
         pylab.plot(xdata, ydata, label=label)
 
     pylab.grid(True, color='black')
-    pylab.xlabel(xlabel, fontsize=16)
-    pylab.ylabel(ylabel, fontsize=16)
-    pylab.title(title, fontsize=20)
+    pylab.xlabel(xlabel, fontsize=14)
+    pylab.ylabel(ylabel, fontsize=14)
+    pylab.title(title, fontsize=16)
 
     legend = pylab.legend(loc=4)
     frame = legend.get_frame()
