@@ -159,6 +159,8 @@ def main():
             ydata.append(1)
         pylab.plot(xdata, ydata, label=label)
 
+    pylab.xlim([lowerbound, upperbound + (upperbound/100.0)])
+    pylab.ylim([0, 1.01])
     pylab.grid(True, color='black')
     pylab.xlabel(xlabel, fontsize=14)
     pylab.ylabel(ylabel, fontsize=14)
