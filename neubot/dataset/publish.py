@@ -47,7 +47,7 @@ def main():
 
         # Check real and internal address
         cursor = connection.cursor()
-        cursor.execute('''SELECT COUNT(*) FROM %s WHERE privacy_can_share = 0
+        cursor.execute('''SELECT COUNT(*) FROM %s WHERE privacy_can_share != 1
           AND (real_address != '0.0.0.0' OR internal_address != '0.0.0.0');'''
            % table)
         count = next(cursor)[0]
