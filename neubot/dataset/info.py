@@ -108,18 +108,18 @@ def main():
 
     syslog.openlog('info.py', syslog.LOG_PERROR, syslog.LOG_USER)
     outfp = sys.stdout
-    pretty = False
+    pretty = True
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'do:')
+        options, arguments = getopt.getopt(sys.argv[1:], 'ro:')
     except getopt.error:
-        sys.exit('Usage: info.py file')
+        sys.exit('Usage: info.py [-r] [-o file] file')
     if len(arguments) != 1:
-        sys.exit('Usage: info.py file')
+        sys.exit('Usage: info.py [-r] [-o file] file')
 
     for name, value in options:
-        if name == '-d':
-            pretty = True
+        if name == '-r':
+            pretty = False
         elif name == '-o':
             outfp = open(value, 'w')
 
