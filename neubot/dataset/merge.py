@@ -151,13 +151,14 @@ def main():
         if name == '-o':
             output = value
 
+    beginning = {}
     destination = __sqlite3_connect(output)
     for argument in arguments:
         source = __sqlite3_connect(argument)
         for table in ('speedtest', 'bittorrent'):
             # Just in case there are overlapping measurements
-            beginning = __lookup_last(destination, table)
-            __copy_table(source, destination, table, beginning)
+            beginning[table] = __lookup_last(destination, table)
+            __copy_table(source, destination, table, beginning[table])
 
     destination.commit()
 
