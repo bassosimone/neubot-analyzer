@@ -65,6 +65,7 @@ def main():
         ydata.append(len(uuid_list))
 
     result = pylab.plot_date(xdata, ydata)
+    pylab.grid(True, color='black')
     pylab.xlabel('Date', fontsize=16)
     if count_users:
         pylab.suptitle('Number of neubots per day', fontsize=20)
