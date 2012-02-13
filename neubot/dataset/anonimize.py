@@ -41,7 +41,7 @@ def main():
     for table in ('speedtest', 'bittorrent'):
         syslog.syslog(syslog.LOG_INFO, 'Table: %s' % table)
         connection.execute('''UPDATE %s SET internal_address='0.0.0.0',
-          real_address='0.0.0.0' WHERE privacy_can_share != 1;''' % table)
+          real_address='0.0.0.0' WHERE privacy_can_publish != 1;''' % table)
 
     connection.execute('VACUUM;')
     connection.commit()

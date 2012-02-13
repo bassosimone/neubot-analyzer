@@ -95,7 +95,7 @@ def __build_hist(connection, table, hist, groups):
         # Zap unneeded data
         del row['id'], row['internal_address'], row['neubot_version'], \
           row['platform'], row['privacy_can_collect'], \
-          row['privacy_informed'], row['privacy_can_share'], \
+          row['privacy_informed'], row['privacy_can_publish'], \
           row['timestamp'], row['remote_address'], row['real_address']
 
         #

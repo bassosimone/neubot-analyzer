@@ -56,7 +56,7 @@ def __info_publishable(connection, table):
     ''' How many publishable tests '''
     cursor = connection.cursor()
     cursor.execute('''SELECT COUNT(*) FROM %s
-      WHERE privacy_can_share=1;''' % table)
+      WHERE privacy_can_publish=1;''' % table)
     count = next(cursor)[0]
     if not count:
         return 0
@@ -74,7 +74,7 @@ def __info_geolocated(connection, table):
 def __info_anonymized(connection, table):
     ''' Tells whether the database is anonimized '''
     cursor = connection.cursor()
-    cursor.execute('''SELECT COUNT(*) FROM %s WHERE privacy_can_share = 0
+    cursor.execute('''SELECT COUNT(*) FROM %s WHERE privacy_can_publish = 0
       AND (real_address != '0.0.0.0' OR internal_address != '0.0.0.0');'''
       % table)
     count = next(cursor)[0]

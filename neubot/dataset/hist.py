@@ -82,7 +82,7 @@ def __load_table(connection, table, providers):
         # Remove unneeded fields
         del line['id'], line['internal_address'], line['neubot_version'], \
           line['platform'], line['privacy_can_collect'], \
-          line['privacy_informed'], line['privacy_can_share'], \
+          line['privacy_informed'], line['privacy_can_publish'], \
           line['uuid'], line['timestamp'], line['remote_address'], \
           line['real_address']
 

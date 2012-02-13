@@ -156,17 +156,17 @@ def __sanitize(table):
 
     return table
 
-def __lookup_can_share(connection, table):
+def __lookup_can_publish(connection, table):
 
     '''
      This function lookups the number of measurement with the
-     can_share permission in @table in the database referenced
+     can_publish permission in @table in the database referenced
      by @connection.
     '''
 
     cursor = connection.cursor()
     cursor.execute('''SELECT COUNT(timestamp) FROM %s
-      WHERE privacy_can_share=1;''' % __sanitize(table))
+      WHERE privacy_can_publish=1;''' % __sanitize(table))
     count = next(cursor)[0]
     if not count:
         return 0
@@ -284,7 +284,7 @@ def __anonimize(connection, table):
     for row in cursor:
 
         # Avoid violating MaxMind copyright
-        if int(row['privacy_can_share']):
+        if int(row['privacy_can_publish']):
             continue
 
         # Ditch user address
@@ -561,7 +561,7 @@ def main():
                 dictionary[table]['count_uuids'] = __lookup_count_uuids(target,
                                                                         table)
                 dictionary[table]['count'] = __lookup_count(target, table)
-                dictionary[table]['can_share'] = __lookup_can_share(target,
+                dictionary[table]['can_publish'] = __lookup_can_publish(target,
                                                                     table)
                 first = __lookup_first(target, table)
                 last = __lookup_last(target, table)
@@ -583,7 +583,7 @@ def main():
                 sys.stdout.write("\n")
 
     #
-    # Zap all internet addresses with no can_share permission
+    # Zap all internet addresses with no can_publish permission
     # attached regardless of the other settings.
     #
     elif flag_anonimize:
