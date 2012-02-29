@@ -31,6 +31,8 @@ sys.path.insert(0, '../neubot')
 
 from neubot.database import DatabaseManager
 from neubot.database import migrate
+from neubot.database import migrate2
+from neubot.log import LOG
 
 # =======
 # sqlite3
@@ -79,6 +81,7 @@ def __sqlite3_connect(path):
     connection = sqlite3.connect(npath)
     connection.row_factory = sqlite3.Row
     migrate.migrate(connection)
+    migrate2.migrate(connection)
     return connection
 
 # ======
@@ -141,15 +144,17 @@ def main():
     output = 'database.sqlite3'
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'o:')
+        options, arguments = getopt.getopt(sys.argv[1:], 'o:v')
     except getopt.error:
-        sys.exit('Usage: merge.py [-o output] file...')
+        sys.exit('Usage: merge.py [-v] [-o output] file...')
     if not arguments:
-        sys.exit('Usage: merge.py [-o output] file...')
+        sys.exit('Usage: merge.py [-v] [-o output] file...')
 
     for name, value in options:
         if name == '-o':
             output = value
+        elif value == '-v':
+            LOG.verbose()
 
     beginning = {}
     destination = __sqlite3_connect(output)
