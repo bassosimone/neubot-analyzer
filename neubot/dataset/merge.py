@@ -92,7 +92,7 @@ def __lookup_last(connection, table):
     ''' Get the timestamp of the last test '''
     cursor = connection.cursor()
     cursor.execute('SELECT MAX(timestamp) FROM %s;' % table)
-    maximum = next(cursor)[0]
+    maximum = cursor.next()[0]
     if not maximum:
         return 0
     return maximum
